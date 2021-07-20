@@ -59,3 +59,5 @@ This is hopefully just a temporary solution and we get https://github.com/9names
 If something is not working or can get improved create an issue or send an PR.
 
 I only tested this on Windows with an Sipeed JTAG adapter.
+
+If you get an error regarding communicating to the debug probe - just try again. Hope to get this fixed.
