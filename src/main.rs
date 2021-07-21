@@ -66,17 +66,12 @@ fn run() -> Result<(), Error> {
         }
     };
 
-    let baud = matches
-        .value_of("baud")
-        .unwrap()
-        .parse()
-        .unwrap();
-    let monitor_baud = matches
-        .value_of("monitor-baud")
-        .unwrap()
-        .parse()
-        .unwrap();
-    let monitor_baud = serial::BaudOther(monitor_baud);
+    let baud = matches.value_of("baud").unwrap().parse().unwrap();
+    let monitor_baud = matches.value_of("monitor-baud").unwrap().parse().unwrap();
+    let monitor_baud = match monitor_baud {
+        115200 => serial::Baud115200,
+        _ => serial::BaudOther(monitor_baud),
+    };
 
     let no_monitor = matches.is_present("no-monitor");
 
@@ -143,7 +138,7 @@ fn run() -> Result<(), Error> {
 
     let opt = FlashOpt {
         conn: Connection {
-            port: port,
+            port: port.clone(),
             baud_rate: baud,
         },
         image: file.into(),
@@ -171,7 +166,7 @@ fn run() -> Result<(), Error> {
 
     // connect serial port
     log::info!("start serial monitor");
-    let mut port = serial::open("com3").unwrap();
+    let mut port = serial::open(&port).unwrap();
 
     port.reconfigure(&|settings| {
         settings.set_baud_rate(monitor_baud)?;
