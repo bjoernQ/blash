@@ -34,7 +34,7 @@ pub struct Table {
 pub struct Entry {
     #[deku(bytes = "3")]
     pub r#type: u32,
-    #[deku(writer = "Entry::write_name(name, output)")]
+    #[deku(writer = "Entry::write_name(name, deku::output)")]
     pub name: String,
     pub address0: u32,
     pub address1: u32,
@@ -57,7 +57,10 @@ impl PartitionCfg {
 }
 
 impl Entry {
-    fn write_name(name: &str, output: &mut BitVec<Msb0, u8>) -> Result<(), DekuError> {
+    fn write_name(
+        name: &str,
+        output: &mut bitvec::prelude::BitVec<bitvec::order::Msb0, u8>,
+    ) -> Result<(), DekuError> {
         if name.len() > 8 {
             return Err(DekuError::Unexpected("name too long".to_string()));
         }

@@ -1,10 +1,10 @@
 [package]
 name = "blash"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2018"
 
 [dependencies]
-probe-rs = { git = "https://github.com/probe-rs/probe-rs/", package="probe-rs", features = ["ftdi"], rev="ecbae89b93a82d8df48ebc3d1c2a126df627609c" }
+probe-rs = { git = "https://github.com/probe-rs/probe-rs/", package="probe-rs", features = ["ftdi"], rev="9100410735b27b4050c744445e8b347c2a894ab1" }
 serial = "0.4"
 xmas-elf = "0.7.0"
 main_error = "0.1.1"
@@ -21,9 +21,9 @@ paw = "1.0.0"
 crc = "1.8.1"
 hex = "0.4.2"
 parse_int = "0.5.0"
-funty="=1.1.0"
-bitvec = "=0.19.4"
-deku = "=0.9.3"
+funty="=1.2.0"
+bitvec = "0.22.3"
+deku = "0.12.3"
 clap = "2.33.3"
 ctrlc = "3.1.9"
 serialport = "4.0.1"

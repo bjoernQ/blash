@@ -38,7 +38,7 @@ impl Response for NoResponsePayload {
     }
 }
 
-pub trait Response: for<'a> DekuContainerRead + Sized {
+pub trait Response: for<'a> DekuContainerRead<'a> + Sized {
     // <'a>
     fn from_payload(input: &[u8]) -> Result<Self, DekuError> {
         // We don't care about the lifetime 'a, as we only check the bit offset,

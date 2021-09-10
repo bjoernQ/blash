@@ -25,7 +25,7 @@ fn main() {
 
 fn run() -> Result<(), Error> {
     let matches = App::new("blash")
-        .version("1.0.0")
+        .version("1.0.1")
         .author("Bjoern Quentin")
         .about("Zero Touch BL602 Flasher")
         .arg(
