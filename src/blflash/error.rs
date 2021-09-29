@@ -4,7 +4,7 @@ use thiserror::Error;
 #[non_exhaustive]
 pub enum Error {
     #[error("IO error while using serial port: {0}")]
-    Serial(#[from] serial::core::Error),
+    Serial(#[from] serialport::Error),
     #[error("IO error: {0}")]
     IO(#[from] std::io::Error),
     #[error("Failed to connect to the device")]

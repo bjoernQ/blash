@@ -1,7 +1,7 @@
 use crate::blflash::Error;
 use crate::blflash::{connection::Connection, elf::RomSegment};
 use indicatif::{HumanBytes, ProgressBar, ProgressStyle};
-use serial::{BaudRate, SerialPort};
+use serialport::SerialPort;
 use sha2::{Digest, Sha256};
 use std::thread::sleep;
 use std::{
@@ -25,10 +25,7 @@ pub struct Flasher {
 }
 
 impl Flasher {
-    pub fn connect(
-        serial: impl SerialPort + 'static,
-        initial_speed: BaudRate,
-    ) -> Result<Self, Error> {
+    pub fn connect(serial: Box<dyn SerialPort>, initial_speed: u32) -> Result<Self, Error> {
         let mut flasher = Flasher {
             connection: Connection::new(serial),
             boot_info: protocol::BootInfo::default(),

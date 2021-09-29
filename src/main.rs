@@ -8,13 +8,16 @@ use byteorder::ReadBytesExt;
 use clap::{App, Arg};
 use env_logger::Env;
 use probe_rs::{Error, MemoryInterface, Probe};
-use serial::SerialPort;
 
 use crate::blflash::{Boot2Opt, Connection, FlashOpt};
 
 mod blflash;
 
 fn main() {
+    env_logger::Builder::from_env(Env::default().default_filter_or("blash=trace"))
+        .format_timestamp(None)
+        .init();
+
     match run() {
         Ok(_) => (),
         Err(err) => {
@@ -23,9 +26,9 @@ fn main() {
     }
 }
 
-fn run() -> Result<(), Error> {
+fn run() -> Result<(), Box<dyn std::error::Error>> {
     let matches = App::new("blash")
-        .version("1.0.1")
+        .version("1.0.2")
         .author("Bjoern Quentin")
         .about("Zero Touch BL602 Flasher")
         .arg(
@@ -62,24 +65,16 @@ fn run() -> Result<(), Error> {
     } else {
         match matches.value_of("port") {
             Some(port) => port.to_string(),
-            None => return Err(Error::UnableToOpenProbe("No port specified")),
+            None => return Err("No port specified or found".into()),
         }
     };
 
     let baud = matches.value_of("baud").unwrap().parse().unwrap();
     let monitor_baud = matches.value_of("monitor-baud").unwrap().parse().unwrap();
-    let monitor_baud = match monitor_baud {
-        115200 => serial::Baud115200,
-        _ => serial::BaudOther(monitor_baud),
-    };
 
     let no_monitor = matches.is_present("no-monitor");
 
     let file = matches.value_of("file").unwrap();
-
-    env_logger::Builder::from_env(Env::default().default_filter_or("blash=trace"))
-        .format_timestamp(None)
-        .init();
 
     // Get a list of all available debug probes.
     let probes = Probe::list_all();
@@ -166,18 +161,12 @@ fn run() -> Result<(), Error> {
 
     // connect serial port
     log::info!("start serial monitor");
-    let mut port = serial::open(&port).unwrap();
-
-    port.reconfigure(&|settings| {
-        settings.set_baud_rate(monitor_baud)?;
-        settings.set_char_size(serial::Bits8);
-        settings.set_parity(serial::ParityNone);
-        settings.set_stop_bits(serial::Stop1);
-        settings.set_flow_control(serial::FlowNone);
-        Ok(())
-    })
-    .unwrap();
-
+    let mut port = serialport::new(port, monitor_baud)
+        .data_bits(serialport::DataBits::Eight)
+        .parity(serialport::Parity::None)
+        .stop_bits(serialport::StopBits::One)
+        .flow_control(serialport::FlowControl::None)
+        .open()?;
     port.set_timeout(Duration::from_millis(10)).unwrap();
 
     let canceled = std::sync::Arc::new(std::sync::Mutex::new(false));

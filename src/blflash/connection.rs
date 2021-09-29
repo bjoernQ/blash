@@ -3,13 +3,12 @@
 use crate::{blflash::Error, blflash::RomError};
 use byteorder::{ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 use deku::prelude::*;
+use serialport::SerialPort;
 use std::io::{Cursor, Read, Write};
 use std::thread::sleep;
 use std::time::Duration;
 
-use serial::{BaudRate, SerialPort, SerialPortSettings};
-
-pub const DEFAULT_BAUDRATE: BaudRate = BaudRate::Baud115200;
+pub const DEFAULT_BAUDRATE: u32 = 115200;
 
 macro_rules! impl_command(
     ($id: expr, $t:ty, $r:ty) => (
@@ -61,36 +60,36 @@ pub trait Command: DekuContainerWrite {
 
 pub struct Connection {
     serial: Box<dyn SerialPort>,
-    baud_rate: Option<BaudRate>,
+    baud_rate: Option<u32>,
 }
 
 impl Connection {
-    pub fn new(serial: impl SerialPort + 'static) -> Self {
+    pub fn new(serial: Box<dyn SerialPort>) -> Self {
         Connection {
-            serial: Box::new(serial),
+            serial,
             baud_rate: None,
         }
     }
 
     pub fn reset(&mut self) -> Result<(), Error> {
-        self.serial.set_rts(false)?;
+        self.serial.write_request_to_send(false)?;
         sleep(Duration::from_millis(50));
-        self.serial.set_dtr(true)?;
+        self.serial.write_data_terminal_ready(true)?;
         sleep(Duration::from_millis(50));
-        self.serial.set_dtr(false)?;
+        self.serial.write_data_terminal_ready(false)?;
         sleep(Duration::from_millis(50));
 
         Ok(())
     }
 
     pub fn reset_to_flash(&mut self) -> Result<(), Error> {
-        self.serial.set_rts(true)?;
+        self.serial.write_request_to_send(true)?;
         sleep(Duration::from_millis(50));
-        self.serial.set_dtr(true)?;
+        self.serial.write_data_terminal_ready(true)?;
         sleep(Duration::from_millis(50));
-        self.serial.set_dtr(false)?;
+        self.serial.write_data_terminal_ready(false)?;
         sleep(Duration::from_millis(50));
-        self.serial.set_rts(false)?;
+        self.serial.write_request_to_send(false)?;
         sleep(Duration::from_millis(50));
 
         Ok(())
@@ -101,10 +100,9 @@ impl Connection {
         Ok(())
     }
 
-    pub fn set_baud(&mut self, speed: BaudRate) -> Result<(), Error> {
+    pub fn set_baud(&mut self, speed: u32) -> Result<(), Error> {
         self.baud_rate = Some(speed);
-        self.serial
-            .reconfigure(&|setup: &mut dyn SerialPortSettings| setup.set_baud_rate(speed))?;
+        self.serial.set_baud_rate(speed)?;
         Ok(())
     }
 
@@ -152,7 +150,7 @@ impl Connection {
     }
 
     pub fn calc_duration_length(&mut self, duration: Duration) -> usize {
-        self.baud_rate.unwrap_or(DEFAULT_BAUDRATE).speed() / 10 / 1000
+        (self.baud_rate.unwrap_or(DEFAULT_BAUDRATE) / 10 / 1000) as usize
             * (duration.as_millis() as usize)
     }
 

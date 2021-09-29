@@ -7,6 +7,7 @@ pub mod image;
 
 pub use crate::blflash::error::{Error, RomError};
 pub use flasher::Flasher;
+use serialport::SerialPort;
 
 use crate::blflash::{
     chip::{
@@ -16,7 +17,6 @@ use crate::blflash::{
     elf::{FirmwareImage, RomSegment},
     image::BootHeaderCfgFile,
 };
-use serial::{BaudRate, CharSize, FlowControl, Parity, SerialPort, SerialPortSettings, StopBits};
 use std::{borrow::Cow, fs::read, path::PathBuf};
 use structopt::StructOpt;
 
@@ -27,7 +27,7 @@ pub struct Connection {
     pub port: String,
     /// Baud rate
     #[structopt(long, default_value = "115200")]
-    pub baud_rate: usize,
+    pub baud_rate: u32,
 }
 
 #[derive(StructOpt)]
@@ -97,20 +97,19 @@ pub enum Opt {
 }
 
 impl Connection {
-    pub fn open_serial(&self) -> Result<impl SerialPort, Error> {
-        let mut serial = serial::open(&self.port)?;
-        serial.reconfigure(&|setup: &mut dyn SerialPortSettings| {
-            setup.set_char_size(CharSize::Bits8);
-            setup.set_stop_bits(StopBits::Stop1);
-            setup.set_parity(Parity::ParityNone);
-            setup.set_flow_control(FlowControl::FlowNone);
-            Ok(())
-        })?;
-        Ok(serial)
+    pub fn open_serial(&self) -> Result<Box<dyn SerialPort>, Error> {
+        let port = serialport::new(&self.port, self.baud_rate)
+            .data_bits(serialport::DataBits::Eight)
+            .parity(serialport::Parity::None)
+            .stop_bits(serialport::StopBits::One)
+            .flow_control(serialport::FlowControl::None)
+            .open()?;
+
+        Ok(port)
     }
     pub fn create_flasher(&self) -> Result<Flasher, Error> {
         let serial = self.open_serial()?;
-        crate::blflash::Flasher::connect(serial, BaudRate::from_speed(self.baud_rate))
+        crate::blflash::Flasher::connect(serial, self.baud_rate)
     }
 }
 
