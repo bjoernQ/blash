@@ -48,11 +48,12 @@ pub struct Entry {
 impl PartitionCfg {
     fn header_checksum(&self) -> u32 {
         let data = self.to_bytes().unwrap();
-        crc::crc32::checksum_ieee(&data[0..12])
+        crc::Crc::<u32>::new(&crc::CRC_32_ISO_HDLC).checksum(&data[0..12])
     }
     fn checksum(&self) -> u32 {
         let data = self.to_bytes().unwrap();
-        crc::crc32::checksum_ieee(&data[16..16 + 36 * self.pt_entry.len()])
+        crc::Crc::<u32>::new(&crc::CRC_32_ISO_HDLC)
+            .checksum(&data[16..16 + 36 * self.pt_entry.len()])
     }
 }
 

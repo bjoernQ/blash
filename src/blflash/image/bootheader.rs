@@ -213,21 +213,21 @@ pub struct BootHeaderCfg {
 impl FlashCfg {
     fn checksum(&self) -> u32 {
         let data = self.to_bytes().unwrap();
-        crc::crc32::checksum_ieee(&data[4..data.len() - 4])
+        crc::Crc::<u32>::new(&crc::CRC_32_ISO_HDLC).checksum(&data[4..data.len() - 4])
     }
 }
 
 impl ClkCfg {
     fn checksum(&self) -> u32 {
         let data = self.to_bytes().unwrap();
-        crc::crc32::checksum_ieee(&data[4..data.len() - 4])
+        crc::Crc::<u32>::new(&crc::CRC_32_ISO_HDLC).checksum(&data[4..data.len() - 4])
     }
 }
 
 impl BootHeaderCfg {
     fn checksum(&self) -> u32 {
         let data = self.to_bytes().unwrap();
-        crc::crc32::checksum_ieee(&data[0..data.len() - 4])
+        crc::Crc::<u32>::new(&crc::CRC_32_ISO_HDLC).checksum(&data[0..data.len() - 4])
     }
     fn update_sha256(&mut self, hash: &[u8]) -> Result<(), Error> {
         let mut reader = Cursor::new(hash);
