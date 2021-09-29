@@ -60,12 +60,20 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         .get_matches();
 
     let ports = serialport::available_ports().expect("No ports found!");
-    let port = if ports.len() == 1 && !matches.is_present("port") {
+
+    let port_from_env = std::env::var("BLASH_PORT").ok();
+    let port = if ports.len() == 1 && !matches.is_present("port") && port_from_env.is_none() {
         ports[0].port_name.to_string()
     } else {
         match matches.value_of("port") {
             Some(port) => port.to_string(),
-            None => return Err("No port specified or found".into()),
+            None => {
+                if port_from_env.is_some() {
+                    port_from_env.unwrap()
+                } else {
+                    return Err("No port specified or found".into());
+                }
+            }
         }
     };
 
