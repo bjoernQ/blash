@@ -8,6 +8,7 @@ use byteorder::ReadBytesExt;
 use clap::{App, Arg};
 use env_logger::Env;
 use probe_rs::{Error, MemoryInterface, Probe};
+use probe_rs_rtt::ScanRegion;
 
 use crate::blflash::{Boot2Opt, Connection, FlashOpt};
 
@@ -56,6 +57,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 .long("no-monitor")
                 .required(false),
         )
+        .arg(Arg::with_name("rtt").long("rtt").required(false))
         .arg(Arg::with_name("file").last(true).required(true))
         .get_matches();
 
@@ -94,6 +96,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         .open()?;
 
     let mut session = probe.attach("Riscv")?;
+
+    let memory_map = session.target().memory_map.clone();
 
     // Select a core.
     let mut core = session.core(0)?;
@@ -163,6 +167,53 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     core.write_core_reg(pc.into(), 0x21000000)?;
     core.run()?;
 
+    let canceled = std::sync::Arc::new(std::sync::Mutex::new(false));
+
+    let canceled_clone = canceled.clone();
+    ctrlc::set_handler(move || {
+        *canceled_clone.lock().unwrap() = true;
+    })
+    .expect("Error setting Ctrl-C handler");
+
+    if matches.is_present("rtt") {
+        let elf_data = std::fs::read(file)?;
+        let elf_file = goblin::elf::Elf::parse(&elf_data)?;
+
+        let mut rtt_address: Option<u32> = None;
+
+        for sym in elf_file.syms.iter() {
+            if sym.st_name != 0 {
+                let name = sym.st_name;
+                let name = elf_file.strtab.get_at(name).unwrap();
+                if name == "_SEGGER_RTT" {
+                    rtt_address = Some(sym.st_value as u32);
+                    break;
+                }
+            }
+        }
+
+        sleep(Duration::from_millis(500));
+        let scan_region = ScanRegion::Exact(rtt_address.ok_or("No RTT block found")?);
+        let mut rtt = probe_rs_rtt::Rtt::attach_region(&mut core, &memory_map, &scan_region)?;
+
+        let channel = rtt.up_channels().iter().next().unwrap();
+        let mut buf = [0u8; 1024];
+
+        loop {
+            let read = channel.read(&mut core, &mut buf)?;
+            if read > 0 {
+                let to_print = String::from_utf8(buf[..read].to_vec()).unwrap();
+                print!("{}", to_print);
+            }
+
+            if *canceled.lock().unwrap() {
+                break;
+            }
+        }
+
+        return Ok(());
+    }
+
     if no_monitor {
         return Ok(());
     }
@@ -176,14 +227,6 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         .flow_control(serialport::FlowControl::None)
         .open()?;
     port.set_timeout(Duration::from_millis(10)).unwrap();
-
-    let canceled = std::sync::Arc::new(std::sync::Mutex::new(false));
-
-    let canceled_clone = canceled.clone();
-    ctrlc::set_handler(move || {
-        *canceled_clone.lock().unwrap() = true;
-    })
-    .expect("Error setting Ctrl-C handler");
 
     let mut br = BufReader::new(port);
     loop {

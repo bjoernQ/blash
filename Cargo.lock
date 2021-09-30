@@ -115,6 +115,7 @@ dependencies = [
  "deku",
  "env_logger",
  "funty",
+ "goblin",
  "hex",
  "indicatif",
  "log",
@@ -122,6 +123,7 @@ dependencies = [
  "parse_int",
  "paw",
  "probe-rs",
+ "probe-rs-rtt",
  "serde",
  "serialport",
  "sha2",
@@ -368,6 +370,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "goblin"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32401e89c6446dcd28185931a01b1093726d0356820ac744023e6850689bf926"
+dependencies = [
+ "log",
+ "plain",
+ "scroll",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -482,22 +495,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd8f7255a17a627354f321ef0055d63b898c6fb27eff628af4d1b66b7331edf6"
 
 [[package]]
-name = "libftdi1-source-lgpl"
-version = "1.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4412918d38c7b78f59c5b0cefec46e2099876dfd95f07f9bb2269d1d7b09fdb1"
-
-[[package]]
 name = "libftdi1-sys"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f115599b5073d108edfcc32daa1a673193323fc10559c33bed6cc20f2f0bf4d"
 dependencies = [
- "cc",
  "cfg-if 1.0.0",
  "libc",
- "libftdi1-source-lgpl",
- "libusb1-sys",
  "pkg-config",
  "vcpkg",
 ]
@@ -693,9 +697,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c9b1041b4387893b91ee6746cddfc28516aff326a3519fb2adf820932c5e6cb"
 
 [[package]]
+name = "plain"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
+
+[[package]]
 name = "probe-rs"
 version = "0.11.0"
-source = "git+https://github.com/probe-rs/probe-rs/?rev=9100410735b27b4050c744445e8b347c2a894ab1#9100410735b27b4050c744445e8b347c2a894ab1"
+source = "git+https://github.com/probe-rs/probe-rs/?rev=cc8d713eb3bcaf2b3da887c8292b60a317be922d#cc8d713eb3bcaf2b3da887c8292b60a317be922d"
 dependencies = [
  "anyhow",
  "base64",
@@ -725,9 +735,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "probe-rs-rtt"
+version = "0.11.0"
+source = "git+https://github.com/probe-rs/probe-rs/?rev=cc8d713eb3bcaf2b3da887c8292b60a317be922d#cc8d713eb3bcaf2b3da887c8292b60a317be922d"
+dependencies = [
+ "log",
+ "probe-rs",
+ "scroll",
+ "thiserror",
+]
+
+[[package]]
 name = "probe-rs-target"
 version = "0.11.0"
-source = "git+https://github.com/probe-rs/probe-rs/?rev=9100410735b27b4050c744445e8b347c2a894ab1#9100410735b27b4050c744445e8b347c2a894ab1"
+source = "git+https://github.com/probe-rs/probe-rs/?rev=cc8d713eb3bcaf2b3da887c8292b60a317be922d#cc8d713eb3bcaf2b3da887c8292b60a317be922d"
 dependencies = [
  "base64",
  "jep106",
@@ -824,6 +845,20 @@ name = "scroll"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fda28d4b4830b807a8b43f7b0e6b5df875311b3e7621d84577188c175b6ec1ec"
+dependencies = [
+ "scroll_derive",
+]
+
+[[package]]
+name = "scroll_derive"
+version = "0.10.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aaaae8f38bb311444cfb7f1979af0bc9240d95795f75f9ceddf6a59b79ceffa0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "serde"

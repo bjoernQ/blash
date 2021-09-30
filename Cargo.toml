@@ -4,7 +4,8 @@ version = "0.1.2"
 edition = "2018"
 
 [dependencies]
-probe-rs = { git = "https://github.com/probe-rs/probe-rs/", package="probe-rs", features = ["ftdi"], rev="9100410735b27b4050c744445e8b347c2a894ab1" }
+probe-rs = { git = "https://github.com/probe-rs/probe-rs/", package="probe-rs", features = ["ftdi"], rev="cc8d713eb3bcaf2b3da887c8292b60a317be922d" }
+probe-rs-rtt = { git = "https://github.com/probe-rs/probe-rs/",  rev="cc8d713eb3bcaf2b3da887c8292b60a317be922d" }
 xmas-elf = "0.8.0"
 main_error = "0.1.1"
 serde = { version = "1.0", features = ["derive"] }
@@ -26,3 +27,4 @@ deku = "0.12.3"
 clap = "2.33.3"
 ctrlc = "3.1.9"
 serialport = "4.0.1"
+goblin = "0.4.3"
