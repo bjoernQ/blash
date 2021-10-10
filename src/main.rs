@@ -1,13 +1,20 @@
 use std::{
+    borrow::{Borrow, Cow},
     io::BufReader,
     thread::sleep,
     time::{Duration, Instant},
 };
 
+use addr2line::{
+    fallible_iterator::FallibleIterator,
+    gimli::{BaseAddresses, DebugFrame, UninitializedUnwindContext, UnwindSection},
+    object::{File, Object, ObjectSection},
+    Context,
+};
 use byteorder::ReadBytesExt;
 use clap::{App, Arg};
 use env_logger::Env;
-use probe_rs::{Error, MemoryInterface, Probe};
+use probe_rs::{Core, Error, MemoryInterface, Probe};
 use probe_rs_rtt::ScanRegion;
 
 use crate::blflash::{Boot2Opt, Connection, FlashOpt};
@@ -29,7 +36,7 @@ fn main() {
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let matches = App::new("blash")
-        .version("1.0.2")
+        .version("1.0.3")
         .author("Bjoern Quentin")
         .about("Zero Touch BL602 Flasher")
         .arg(
@@ -180,6 +187,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         let elf_file = goblin::elf::Elf::parse(&elf_data)?;
 
         let mut rtt_address: Option<u32> = None;
+        let mut bt_trigger: Option<u32> = None;
 
         for sym in elf_file.syms.iter() {
             if sym.st_name != 0 {
@@ -187,8 +195,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 let name = elf_file.strtab.get_at(name).unwrap();
                 if name == "_SEGGER_RTT" {
                     rtt_address = Some(sym.st_value as u32);
-                    break;
                 }
+                if name == "_BLASH_BACKTRACE_TRIGGER" {
+                    bt_trigger = Some(sym.st_value as u32);
+                }
+            }
+
+            if rtt_address.is_some() && bt_trigger.is_some() {
+                break;
             }
         }
 
@@ -200,14 +214,37 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         let mut buf = [0u8; 1024];
 
         loop {
+            sleep(Duration::from_millis(100));
+
+            // halting the core shouldn't be necessary
+            // but sometimes we read garbage without
+            core.halt(Duration::from_millis(5)).ok();
             let read = channel.read(&mut core, &mut buf)?;
+            core.run().ok();
+
             if read > 0 {
-                let to_print = String::from_utf8(buf[..read].to_vec()).unwrap();
+                let to_print = String::from_utf8_lossy(&buf[..read]);
                 print!("{}", to_print);
             }
 
             if *canceled.lock().unwrap() {
+                println!("\n\nBacktrace on break");
+                backtrace(elf_data, None, None, core);
                 break;
+            }
+
+            if let Some(bt_trigger_address) = bt_trigger {
+                let mut data = [0u32; 3];
+                core.read_32(bt_trigger_address, &mut data[..])?;
+                if data[0] != 0 {
+                    println!("\n\nBacktrace");
+                    if data[1] != 0 {
+                        backtrace(elf_data, Some(data[1]), Some(data[2]), core);
+                    } else {
+                        backtrace(elf_data, None, None, core);
+                    }
+                    break;
+                }
             }
         }
 
@@ -242,6 +279,117 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+fn backtrace(elf_data: Vec<u8>, mepc: Option<u32>, exception_sp: Option<u32>, mut core: Core) {
+    core.halt(Duration::from_millis(100)).unwrap();
+    let regs = core.registers();
+    let pc = regs.program_counter();
+    let sp = regs.stack_pointer();
+
+    let mut pc = core.read_core_reg(pc).unwrap();
+    let mut sp = core.read_core_reg(sp).unwrap();
+
+    let elf = File::parse(&elf_data[..]).unwrap();
+    let bytes = elf
+        .section_by_name(".debug_frame")
+        .map(|section| section.data())
+        .transpose()
+        .unwrap()
+        .unwrap();
+
+    let mut debug_frame = addr2line::gimli::DebugFrame::new(bytes, addr2line::gimli::LittleEndian);
+    debug_frame.set_address_size(32);
+
+    let context = Context::new(&elf).unwrap();
+
+    if let Some(mepc) = mepc {
+        // backtrace from the exception's origin
+        pc = mepc;
+        sp = exception_sp.unwrap();
+    }
+
+    // This context is reusable, which cuts down on heap allocations.
+    let mut ctx = UninitializedUnwindContext::new();
+    let bases = BaseAddresses::default();
+
+    loop {
+        let (new_pc, new_sp) =
+            backtrace_step(&context, &debug_frame, &mut core, pc, sp, &mut ctx, &bases);
+        pc = new_pc;
+        sp = new_sp;
+
+        if pc < 0x23000000 {
+            break;
+        }
+    }
+}
+
+fn backtrace_step<T, T2>(
+    context: &Context<T>,
+    debug_frame: &DebugFrame<T2>,
+    core: &mut Core,
+    pc: u32,
+    sp: u32,
+    unwind_context: &mut UninitializedUnwindContext<T2>,
+    bases: &BaseAddresses,
+) -> (u32, u32)
+where
+    T: addr2line::gimli::Reader,
+    T2: addr2line::gimli::Reader,
+{
+    let address = pc as u64;
+    let r = context.find_frames(address).unwrap();
+
+    for x in r.iterator() {
+        let x = x.unwrap();
+
+        let loc = x.location.unwrap();
+        let file = loc.file.unwrap();
+        let line = loc.line.unwrap();
+
+        let func = x.function.unwrap();
+        let name = func.raw_name().unwrap();
+        let language = func.language;
+
+        let function_name = addr2line::demangle_auto(Cow::from(name), language);
+        let func_name: &str = function_name.borrow();
+
+        println!("{} {}:{}", func_name, file, line);
+    }
+
+    let unwind_info = debug_frame.unwind_info_for_address(
+        bases,
+        unwind_context,
+        address,
+        DebugFrame::cie_from_offset,
+    );
+
+    match unwind_info {
+        Ok(unwind_info) => {
+            let offset = match unwind_info.cfa() {
+                addr2line::gimli::CfaRule::RegisterAndOffset {
+                    register: _,
+                    offset,
+                } => offset,
+                addr2line::gimli::CfaRule::Expression(_) => panic!("Cannot unwind on expression"),
+            };
+
+            let new_sp = sp + *offset as u32;
+
+            let mut mem = [0; 2];
+            core.read_32(new_sp - 8, &mut mem[..]).unwrap();
+
+            // now mem[1] is the return address
+            (mem[1], new_sp)
+        }
+        Err(_) => {
+            println!(
+                "No more unwind info found. Consider compiling the target with `-Z build-std=core`"
+            );
+            (0, 0)
+        }
+    }
 }
 
 static LOADER: &[u8; 29264] = include_bytes!("../bin/eflash_loader_40m.bin");
