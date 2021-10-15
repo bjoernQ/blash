@@ -227,8 +227,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             if *canceled.lock().unwrap() {
+                core.halt(Duration::from_millis(10)).ok();
                 println!("\n\nBacktrace on break");
-                backtrace(elf_data, None, None, core);
+                backtrace(elf_data, None, None, &mut core);
+                core.run().ok();
                 break;
             }
 
@@ -238,9 +240,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 if data[0] != 0 {
                     println!("\n\nBacktrace");
                     if data[1] != 0 {
-                        backtrace(elf_data, Some(data[1]), Some(data[2]), core);
+                        backtrace(elf_data, Some(data[1]), Some(data[2]), &mut core);
                     } else {
-                        backtrace(elf_data, None, None, core);
+                        backtrace(elf_data, None, None, &mut core);
                     }
                     break;
                 }
@@ -283,7 +285,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn backtrace(elf_data: Vec<u8>, mepc: Option<u32>, exception_sp: Option<u32>, mut core: Core) {
+fn backtrace(elf_data: Vec<u8>, mepc: Option<u32>, exception_sp: Option<u32>, core: &mut Core) {
     core.halt(Duration::from_millis(100)).unwrap();
     let regs = core.registers();
     let pc = regs.program_counter();
@@ -317,7 +319,7 @@ fn backtrace(elf_data: Vec<u8>, mepc: Option<u32>, exception_sp: Option<u32>, mu
 
     loop {
         let (new_pc, new_sp) =
-            backtrace_step(&context, &debug_frame, &mut core, pc, sp, &mut ctx, &bases);
+            backtrace_step(&context, &debug_frame, core, pc, sp, &mut ctx, &bases);
         pc = new_pc;
         sp = new_sp;
 
