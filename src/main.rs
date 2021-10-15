@@ -1,6 +1,6 @@
 use std::{
     borrow::{Borrow, Cow},
-    io::BufReader,
+    io::{self, BufReader, Write},
     thread::sleep,
     time::{Duration, Instant},
 };
@@ -214,17 +214,16 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         let mut buf = [0u8; 1024];
 
         loop {
-            sleep(Duration::from_millis(100));
+            sleep(Duration::from_millis(10));
 
             // halting the core shouldn't be necessary
             // but sometimes we read garbage without
-            core.halt(Duration::from_millis(5)).ok();
             let read = channel.read(&mut core, &mut buf)?;
-            core.run().ok();
 
             if read > 0 {
                 let to_print = String::from_utf8_lossy(&buf[..read]);
                 print!("{}", to_print);
+                io::stdout().flush().ok();
             }
 
             if *canceled.lock().unwrap() {
@@ -273,7 +272,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
         let x = br.read_u8();
         match x {
-            Ok(x) => print!("{}", x as char),
+            Ok(x) => {
+                print!("{}", x as char);
+                io::stdout().flush().ok();
+            }
             Err(_) => {}
         }
     }
