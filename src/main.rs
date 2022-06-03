@@ -194,7 +194,12 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         let x = br.read_u8();
         match x {
             Ok(x) => print!("{}", x as char),
-            Err(_) => {}
+            Err(e) => {
+                if e.kind() != std::io::ErrorKind::TimedOut {
+                    println!("{:?}", e);
+                    break;
+                }
+            }
         }
     }
 
